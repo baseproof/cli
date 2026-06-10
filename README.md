@@ -38,6 +38,22 @@ Both generators render the live command tree — `baseproof completion <shell>`
 and `baseproof docs` ship in the binary itself — so completions and docs can
 never drift from the shipped surface.
 
+## Homebrew
+
+```sh
+brew install baseproof/tap/baseproof   # macOS (Intel + Apple Silicon) and Linux
+```
+
+Tagging `vX.Y.Z` runs GoReleaser (`.goreleaser.yaml`): it publishes the GitHub
+release and pushes the regenerated cask — binary + shell completions + man
+pages, per-platform URLs + sha256 — to `baseproof/homebrew-tap`
+(`Casks/baseproof.rb`).
+
+One-time setup: create the `baseproof/homebrew-tap` repository and add a
+`HOMEBREW_TAP_TOKEN` Actions secret here (a PAT with write access to the tap).
+Without the secret a release still publishes — the cask is generated in the
+release workspace but not pushed.
+
 ## Commands
 
 | Command | What it does |

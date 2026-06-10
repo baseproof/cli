@@ -1,10 +1,16 @@
 name: release
 
-# Tag vX.Y.Z → build the static binaries for every supported platform
-# (linux/darwin, amd64 + arm64, windows), the shell completions and man pages,
-# checksum everything, and publish a GitHub release. `make install` from source
-# remains the dev path; these artifacts are what a package manager (e.g. a
-# Homebrew tap formula) points at.
+# Tag vX.Y.Z → GoReleaser builds the static binaries for every supported
+# platform (linux/darwin, amd64 + arm64, windows), archives them with the
+# completions + man pages + LICENSE, checksums everything, publishes the
+# GitHub release, and pushes the updated Homebrew formula to
+# baseproof/homebrew-tap.
+#
+# Secrets (both optional):
+#   GO_MODULES_TOKEN    read access to private baseproof modules, if the
+#                       runner can't fetch them anonymously
+#   HOMEBREW_TAP_TOKEN  write access to baseproof/homebrew-tap; absent ⇒ the
+#                       formula is generated into dist/ but not pushed
 
 on:
   push:
@@ -18,10 +24,12 @@ env:
   GOTOOLCHAIN: local
 
 jobs:
-  release:
+  goreleaser:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the changelog needs the full history + tags
       - name: git auth for private baseproof modules (no-op without the secret)
         env:
           TOKEN: ${{ secrets.GO_MODULES_TOKEN }}
@@ -33,15 +41,11 @@ jobs:
         with:
           go-version: "1.25.7"
           cache-dependency-path: go.sum
-      - name: build release artifacts (version = the tag)
-        run: make cross completions man VERSION=${{ github.ref_name }}
-      - name: package completions + man, checksum everything
-        run: |
-          tar -czf dist/baseproof-completions-man.tar.gz completions man
-          cd dist && sha256sum * > checksums.txt
-      - name: publish the GitHub release
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "${{ github.ref_name }}" dist/* \
-            --title "baseproof ${{ github.ref_name }}" --generate-notes
+          GITHUB_TOKEN: ${{ github.token }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

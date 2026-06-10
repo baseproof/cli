@@ -44,10 +44,15 @@ jobs:
       - run: ./bin/baseproof --version
 
   artifacts:
-    name: cross-compile + generators
+    # The release pipeline itself, dry-run: GoReleaser snapshot exercises the
+    # before hooks (completions + man), the full cross matrix, the archives and
+    # the Homebrew formula template on every push — so a tag can't surprise us.
+    name: release pipeline (snapshot)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: git auth for private baseproof modules (no-op without the secret)
         env:
           TOKEN: ${{ secrets.GO_MODULES_TOKEN }}
@@ -59,11 +64,14 @@ jobs:
         with:
           go-version: "1.25.7"
           cache-dependency-path: go.sum
-      - run: make cross completions man
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean
+        env:
+          HOMEBREW_TAP_TOKEN: ""
       - uses: actions/upload-artifact@v4
         with:
           name: baseproof-dist
-          path: |
-            dist/
-            completions/
-            man/
+          path: dist/
