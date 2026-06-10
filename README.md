@@ -38,6 +38,51 @@ Both generators render the live command tree — `baseproof completion <shell>`
 and `baseproof docs` ship in the binary itself — so completions and docs can
 never drift from the shipped surface.
 
+## Homebrew
+
+```sh
+brew install baseproof/tap/baseproof   # macOS (Intel + Apple Silicon) and Linux
+```
+
+Tagging `vX.Y.Z` runs GoReleaser (`.goreleaser.yaml`): it publishes the GitHub
+release and pushes the regenerated cask — binary + shell completions + man
+pages, per-platform URLs + sha256 — to `baseproof/homebrew-tap`
+(`Casks/baseproof.rb`).
+
+One-time setup: create the `baseproof/homebrew-tap` repository and add a
+`HOMEBREW_TAP_TOKEN` Actions secret here (a PAT with write access to the tap).
+Without the secret a release still publishes — the cask is generated in the
+release workspace but not pushed.
+
+## Verify a release (provenance + signatures)
+
+Releases are signed with **Sigstore keyless signing**: the signing identity is
+the release workflow itself (GitHub Actions OIDC, logged in the public Rekor
+transparency log) — there are no long-lived keys anywhere. Every artifact also
+carries a **SLSA build-provenance attestation** binding it to the exact
+workflow run, commit and tag that built it. Three independent checks:
+
+```sh
+# 1. Build provenance — proves the artifact was built by this repo's release
+#    workflow on GitHub Actions (one command, needs only the gh CLI):
+gh attestation verify baseproof_*_darwin_arm64.tar.gz --repo baseproof/cli
+
+# 2. The Sigstore signature over the checksum file:
+cosign verify-blob checksums.txt \
+  --signature checksums.txt.sig --certificate checksums.txt.pem \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp \
+    'https://github.com/baseproof/cli/\.github/workflows/release\.yml@refs/tags/v.*'
+
+# 3. The artifact digests against the now-verified checksum file:
+sha256sum -c checksums.txt --ignore-missing
+```
+
+The Homebrew cask additionally pins the per-platform sha256 of every archive,
+so `brew install` self-verifies integrity. (Homebrew's own Sigstore *bottle*
+verification applies only to homebrew-core bottles, not third-party casks —
+the checks above are the equivalent for this tap.)
+
 ## Commands
 
 | Command | What it does |

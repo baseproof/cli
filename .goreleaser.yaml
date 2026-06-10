@@ -1,0 +1,120 @@
+# GoReleaser pipeline (v2): tag vX.Y.Z → static binaries for every supported
+# platform, archives carrying the completions + man pages + LICENSE, sha256
+# checksums, a GitHub release, and an auto-updated Homebrew cask pushed to
+# the baseproof/homebrew-tap repository (casks are how Homebrew ships
+# pre-built binaries now; linux installs use the release binaries directly).
+#
+# The cask push is gated on the HOMEBREW_TAP_TOKEN env (a PAT with write
+# access to baseproof/homebrew-tap): empty ⇒ the cask is still GENERATED
+# into dist/ but not pushed, so releases work before the tap exists.
+# Users then install with:  brew install baseproof/tap/baseproof
+#
+# Validate locally:  goreleaser check · goreleaser release --snapshot --clean
+version: 2
+
+project_name: baseproof
+
+# The completions + man pages are rendered by the binary itself (host build via
+# the Makefile), then shipped inside every archive — the formula installs them.
+before:
+  hooks:
+    - make completions man
+
+builds:
+  - binary: baseproof
+    main: .
+    env:
+      - CGO_ENABLED=0 # pure-Go static binaries: any modern linux (glibc/musl) + macOS
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+      - completions/*
+      - man/man1/*
+
+checksum:
+  name_template: checksums.txt
+
+# Sigstore keyless signing (cosign) of the checksum file — signing it covers
+# every artifact transitively (verify the signature, then `sha256sum -c`).
+# The ephemeral signing identity is the release workflow itself (GitHub
+# Actions OIDC), recorded in the public Rekor transparency log; no keys to
+# manage. CI snapshot runs skip this (--skip=sign): no OIDC outside Actions.
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    certificate: "${artifact}.pem"
+    output: true
+    args:
+      - sign-blob
+      - --yes
+      - --output-certificate=${certificate}
+      - --output-signature=${signature}
+      - ${artifact}
+
+# Pin the release target (and so the cask download URLs) — never inferred
+# from the local git remote.
+release:
+  github:
+    owner: baseproof
+    name: cli
+
+changelog:
+  filters:
+    exclude: ["^Merge "]
+
+homebrew_casks:
+  - name: baseproof
+    repository:
+      owner: baseproof
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Casks
+    homepage: https://github.com/baseproof/cli
+    description: Unified client for a baseproof network
+    # Empty token ⇒ generate the cask (dist/) but skip the push.
+    skip_upload: "{{ if .Env.HOMEBREW_TAP_TOKEN }}false{{ else }}true{{ end }}"
+    commit_author:
+      name: baseproof-release-bot
+      email: releases@baseproof.dev
+    completions:
+      bash: completions/baseproof.bash
+      zsh: completions/_baseproof
+      fish: completions/baseproof.fish
+    # The full command tree, one page per command — regenerate the list with
+    # `make man && ls man/man1` whenever the surface changes.
+    manpages:
+      - man/man1/baseproof.1
+      - man/man1/baseproof-completion.1
+      - man/man1/baseproof-completion-bash.1
+      - man/man1/baseproof-completion-fish.1
+      - man/man1/baseproof-completion-powershell.1
+      - man/man1/baseproof-completion-zsh.1
+      - man/man1/baseproof-config.1
+      - man/man1/baseproof-config-list.1
+      - man/man1/baseproof-config-set.1
+      - man/man1/baseproof-docs.1
+      - man/man1/baseproof-info.1
+      - man/man1/baseproof-load.1
+      - man/man1/baseproof-network.1
+      - man/man1/baseproof-network-add.1
+      - man/man1/baseproof-network-list.1
+      - man/man1/baseproof-network-show.1
+      - man/man1/baseproof-network-use.1
+      - man/man1/baseproof-proof.1
+      - man/man1/baseproof-submit.1
+      - man/man1/baseproof-verify.1
+      - man/man1/baseproof-witnesses.1
