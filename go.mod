@@ -8,13 +8,13 @@ module github.com/baseproof/cli
 go 1.25.7
 
 require (
-	github.com/baseproof/tooling/libs v0.1.7
+	github.com/baseproof/tooling/libs v0.1.9
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.9
 )
 
 require (
-	github.com/baseproof/baseproof v0.0.4-rc2 // indirect
+	github.com/baseproof/baseproof v0.0.4-rc3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.24.4 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
