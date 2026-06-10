@@ -1,0 +1,69 @@
+name: ci
+
+# The solidity gate for the baseproof binary: gofmt + vet + test + build on
+# linux AND macos, then prove every release target (linux/darwin, amd64+arm64,
+# windows) cross-compiles and the install artifacts (completions, man pages)
+# generate. CGO is off (Makefile), so the binaries are static and portable.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GOPRIVATE: github.com/baseproof/*
+  GOTOOLCHAIN: local # honor the go.mod version; never auto-download a toolchain
+
+jobs:
+  verify:
+    name: check · build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: git auth for private baseproof modules (no-op without the secret)
+        env:
+          TOKEN: ${{ secrets.GO_MODULES_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then
+            git config --global url."https://x-access-token:${TOKEN}@github.com/baseproof/".insteadOf "https://github.com/baseproof/"
+          fi
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.7"
+          cache-dependency-path: go.sum
+      - run: make check
+      - run: make build
+      - run: ./bin/baseproof --version
+
+  artifacts:
+    name: cross-compile + generators
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: git auth for private baseproof modules (no-op without the secret)
+        env:
+          TOKEN: ${{ secrets.GO_MODULES_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then
+            git config --global url."https://x-access-token:${TOKEN}@github.com/baseproof/".insteadOf "https://github.com/baseproof/"
+          fi
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.7"
+          cache-dependency-path: go.sum
+      - run: make cross completions man
+      - uses: actions/upload-artifact@v4
+        with:
+          name: baseproof-dist
+          path: |
+            dist/
+            completions/
+            man/

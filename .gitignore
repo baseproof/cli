@@ -1,2 +1,9 @@
+# make artifacts (build / cross / completions / man)
+/bin/
+/dist/
+/completions/
+/man/
+
+# stray `go build` outputs
 /cli
 baseproof

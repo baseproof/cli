@@ -19,6 +19,10 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// version is stamped at build time (Makefile: -ldflags "-X main.version=...");
+// "dev" marks an unstamped `go build`.
+var version = "dev"
+
 func main() {
 	if err := root().Execute(); err != nil {
 		os.Exit(1)
@@ -41,12 +45,16 @@ cosignatures; 'proof' self-verifies before it emits; 'verify' recomputes every
 check and fails closed. A v2 proof is standalone — 'verify' needs no network.`,
 		SilenceUsage:  true,
 		SilenceErrors: false,
+		Version:       version,
 	}
-	r.CompletionOptions.HiddenDefaultCmd = true
 	r.AddCommand(
 		submitCmd(), loadCmd(), proofCmd(), verifyCmd(),
 		infoCmd(), witnessesCmd(), networkCmd(), configCmd(),
 	)
+	// docs takes the LIVE root so the generated pages are exactly this surface.
+	// The cobra default `completion <shell>` command stays visible for the same
+	// reason: completions + man pages are install artifacts (see the Makefile).
+	r.AddCommand(docsCmd(r))
 	return r
 }
 

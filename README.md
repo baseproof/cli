@@ -5,10 +5,38 @@ client bundle (or the active network). All logic lives in the published
 `github.com/baseproof/tooling/libs/cli` module; this repository is the thin
 Cobra binary over it (extracted from `tooling/baseproof-cli`).
 
+## Build, install, verify
+
+```sh
+make build            # ./bin/baseproof, version stamped from `git describe`
+make install          # install `baseproof` into GOBIN (go env GOBIN, else GOPATH/bin)
+make check            # gofmt + go vet + go test
+baseproof --version   # verify the installed binary
 ```
-go run .            # usage
-go build -o baseproof .
+
+The Makefile pins the binary name: a bare `go install github.com/baseproof/cli@latest`
+works but names the binary `cli` (the module path's last element). The libs
+dependency is a private baseproof module — the Makefile exports
+`GOPRIVATE=github.com/baseproof/*`; set it yourself for bare `go` commands.
+
+Builds are `CGO_ENABLED=0`: one static binary per platform, no libc
+dependency — linux (any distro, glibc or musl) and macOS (Intel + Apple
+Silicon), amd64 + arm64. Tagging `vX.Y.Z` publishes prebuilt binaries,
+completions, man pages and sha256 checksums as a GitHub release
+(`.github/workflows/release.yml`); CI proves the same matrix on every push.
+
+## Generate completions + man pages
+
+```sh
+make completions      # bash / zsh / fish / powershell into ./completions
+make man              # man pages into ./man/man1
+baseproof docs --format markdown --dir docs   # markdown command reference
+make cross            # release binaries into ./dist (linux, darwin, windows)
 ```
+
+Both generators render the live command tree — `baseproof completion <shell>`
+and `baseproof docs` ship in the binary itself — so completions and docs can
+never drift from the shipped surface.
 
 ## Commands
 
@@ -22,6 +50,8 @@ go build -o baseproof .
 | `baseproof network` | gcloud-style network store: `add` (author a bundle from a live ledger — `--from-ledger <url> --quorum K [--ca-cert]` — or import `--from <file\|url>`), `list`, `use`, `show`. |
 | `baseproof config` | `config set network <name>` / `config list` — the active-network default (`~/.config/baseproof/`). |
 | `baseproof load` | Drive the memory-bounded loadgen engine (`-n`, `--amend-ratio`, `--delegate-ratio`, `--workers`, `--batch-size`, `--seed`) and optionally stream the expected-state oracle (`--manifest oracle.jsonl`). |
+| `baseproof completion <shell>` | Generate shell completions (bash, zsh, fish, powershell) from the live command tree. |
+| `baseproof docs` | Generate the command reference — man pages (`--format man`) or markdown (`--format markdown`) — into `--dir`. |
 
 ## Design
 
