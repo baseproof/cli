@@ -68,7 +68,9 @@ jobs:
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --snapshot --clean
+          # --skip=sign: Sigstore keyless signing needs the RELEASE workflow's
+          # OIDC identity; a snapshot has nothing meaningful to sign for.
+          args: release --snapshot --clean --skip=sign
         env:
           HOMEBREW_TAP_TOKEN: ""
       - uses: actions/upload-artifact@v4

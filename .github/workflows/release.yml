@@ -3,14 +3,20 @@ name: release
 # Tag vX.Y.Z → GoReleaser builds the static binaries for every supported
 # platform (linux/darwin, amd64 + arm64, windows), archives them with the
 # completions + man pages + LICENSE, checksums everything, publishes the
-# GitHub release, and pushes the updated Homebrew formula to
+# GitHub release, and pushes the updated Homebrew cask to
 # baseproof/homebrew-tap.
+#
+# Supply chain: the checksum file is signed with Sigstore keyless signing
+# (cosign; the signing identity IS this workflow's OIDC identity, logged in
+# Rekor), and every artifact gets a SLSA build-provenance attestation —
+# verify with `gh attestation verify <file> --repo baseproof/cli`. No keys
+# to manage anywhere.
 #
 # Secrets (both optional):
 #   GO_MODULES_TOKEN    read access to private baseproof modules, if the
 #                       runner can't fetch them anonymously
 #   HOMEBREW_TAP_TOKEN  write access to baseproof/homebrew-tap; absent ⇒ the
-#                       formula is generated into dist/ but not pushed
+#                       cask is generated into dist/ but not pushed
 
 on:
   push:
@@ -18,6 +24,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write # Sigstore keyless signing (the workflow's OIDC identity)
+  attestations: write # SLSA build-provenance attestations
 
 env:
   GOPRIVATE: github.com/baseproof/*
@@ -41,6 +49,7 @@ jobs:
         with:
           go-version: "1.25.7"
           cache-dependency-path: go.sum
+      - uses: sigstore/cosign-installer@v3
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
@@ -49,3 +58,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      - name: SLSA build provenance for every artifact (binds them to this build)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-checksums: dist/checksums.txt

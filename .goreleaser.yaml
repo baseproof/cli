@@ -48,6 +48,23 @@ archives:
 checksum:
   name_template: checksums.txt
 
+# Sigstore keyless signing (cosign) of the checksum file — signing it covers
+# every artifact transitively (verify the signature, then `sha256sum -c`).
+# The ephemeral signing identity is the release workflow itself (GitHub
+# Actions OIDC), recorded in the public Rekor transparency log; no keys to
+# manage. CI snapshot runs skip this (--skip=sign): no OIDC outside Actions.
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    certificate: "${artifact}.pem"
+    output: true
+    args:
+      - sign-blob
+      - --yes
+      - --output-certificate=${certificate}
+      - --output-signature=${signature}
+      - ${artifact}
+
 # Pin the release target (and so the cask download URLs) — never inferred
 # from the local git remote.
 release:
