@@ -66,8 +66,11 @@ signs:
       - ${artifact}
 
 # Pin the release target (and so the cask download URLs) — never inferred
-# from the local git remote.
+# from the local git remote. replace_existing_artifacts makes re-running a
+# failed release run idempotent: assets already uploaded by a previous
+# attempt are overwritten instead of failing with 422 already_exists.
 release:
+  replace_existing_artifacts: true
   github:
     owner: baseproof
     name: cli
